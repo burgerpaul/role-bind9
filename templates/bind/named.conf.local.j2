@@ -52,6 +52,18 @@ zone "{{ zone.name }}" {
         grant {{ zone.name }}_ddns_update {{ zone.update_policy_grant }};
     };
 {%     endif %}
+{%   if zone.allow_query is defined %}
+    allow-query { {{ zone.allow_query | join('; ') }}; };
+{%   endif %}
+{%   if zone.allow_transfer is defined %}
+    allow-transfer { {{ zone.allow_transfer | join('; ') }}; };
+{%   endif %}
+{%   if zone.allow_update is defined %}
+    allow-update { {{ zone.allow_update | join('; ') }}; };
+{%   endif %}
+{%   if zone.allow_notify is defined %}
+    allow-notify { {{ zone.allow_notify | join('; ') }}; };
+{%   endif %}
 {%   elif zone_type == 'slave' %}
     file "/var/lib/bind/db.{{ zone.name }}";
 {%     if zone.masters|default() or bind9_masters|default() %}

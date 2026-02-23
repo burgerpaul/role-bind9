@@ -5,6 +5,8 @@
     state: present
     cache_valid_time: 600
 
+- include_tasks: handle-keys.yml
+
 - name: Setup logs
   when: bind9_named_logging
   block:

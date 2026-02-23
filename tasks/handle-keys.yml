@@ -1,0 +1,96 @@
+---
+- name: Ensure keys directory exists locally
+  become: false
+  delegate_to: localhost
+  ansible.builtin.file:
+    path: "{{ playbook_dir }}/files/bind/keys"
+    state: directory
+    mode: "0755"
+  tags: keyhandling
+
+- name: Check existing key files
+  become: false
+  delegate_to: localhost
+  ansible.builtin.find:
+    paths: "{{ playbook_dir }}/files/bind/keys"
+    file_type: file
+  register: key_files
+  tags: keyhandling
+
+- name: Read key file contents
+  become: false
+  delegate_to: localhost
+  ansible.builtin.slurp:
+    path: "{{ item.path }}"
+  loop: "{{ key_files.files }}"
+  register: raw_key_contents
+  tags: keyhandling
+
+- name: Build bind_keys variable
+  ansible.builtin.set_fact:
+    bind9_rndc_keys_from_file: >-
+      {{ bind9_rndc_keys_from_file | default([]) + [ {
+          'name': ( parsed.0 | default('', true))
+        , 'algorithm': ( parsed.1 | default('', true))
+        , 'secret': ( parsed.2 | default('', true))
+      } ] }}
+  vars:
+    parsed: "{{ item.content | b64decode | regex_search('key\\s+\"([^\"\\s]+)\"\\s*{\\s*algorithm\\s+([^;]+);\\s*secret\\s+\"([^\"\\s]+)\";', '\\1', '\\2', '\\3') }}"
+  loop: "{{ raw_key_contents.results }}"
+  when: parsed.0 in (bind9_rndc_keys | map(attribute='name'))
+  tags: keyhandling
+
+- name: Generate keys for missing files
+  ansible.builtin.shell:
+    cmd: "tsig-keygen -a {{ item.algorithm }} {{ item.name }}"
+  register: generated_keys
+  loop: "{{ bind9_rndc_keys }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when: item.name not in (bind9_rndc_keys_from_file | map(attribute='name'))
+  tags: keyhandling
+
+- name: Extract secrets from generated keys
+  ansible.builtin.set_fact:
+    bind9_rndc_keys_generated: >-
+      {{ bind9_rndc_keys_generated | default([]) + [ {
+          'name': ( parsed.0 | default('', true))
+        , 'algorithm': ( parsed.1 | default('', true))
+        , 'secret': ( parsed.2 | default('', true))
+      } ] }}
+  vars:
+    parsed: "{{ item.stdout | regex_search('key\\s+\"([^\"\\s]+)\"\\s*{\\s*algorithm\\s+([^;]+);\\s*secret\\s+\"([^\"\\s]+)\";', '\\1', '\\2', '\\3') }}"
+  loop: "{{ generated_keys.results }}"
+  when: generated_keys.results | length > 0 and item.stdout is defined
+  tags: keyhandling
+
+- name: Merge bind9_rndc_keys_from_file and bind9_rndc_keys_generated
+  ansible.builtin.set_fact:
+    bind9_loaded_rndc_keys: "{{ bind9_rndc_keys_from_file + (bind9_rndc_keys_generated | default([])) }}"
+  tags: keyhandling
+
+- name: Save all key files locally
+  become: false
+  delegate_to: localhost
+  ansible.builtin.template:
+    src: bind/bind-key.key.j2
+    dest: "{{ playbook_dir }}/files/bind/keys/{{ item.name }}.key"
+    mode: "0600"
+  loop: "{{ bind9_loaded_rndc_keys }}"
+  tags: keyhandling
+
+- name: Create loaded keys dict
+  ansible.builtin.set_fact:
+    loaded_keys_dict: "{{ loaded_keys_dict | default({}) | combine({item.name: item.secret}) }}"
+  loop: "{{ bind9_rndc_keys_from_file }}"
+  tags: keyhandling
+
+- name: Create key files on target
+  ansible.builtin.template:
+    src: bind/bind-key.key.j2
+    dest: /etc/bind/keys/{{ item.name }}.key
+    mode: "0640"
+    owner: root
+    group: bind
+  loop: "{{ bind9_loaded_rndc_keys }}"
+  tags: keyhandling

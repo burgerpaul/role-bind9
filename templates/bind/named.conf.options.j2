@@ -1,3 +1,11 @@
+{% for acl in bind9_acls %}
+acl "{{ acl.name }}" {
+{%   for net in acl.networks %}
+    {{ net }};
+{%   endfor %}
+};
+{% endfor %}
+
 options {
 	directory "/var/cache/bind";
 {% if bind9_forward|default() %}
