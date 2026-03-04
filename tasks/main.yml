@@ -5,8 +5,6 @@
     state: present
     cache_valid_time: 600
 
-- include_tasks: handle-keys.yml
-
 - name: Setup logs
   when: bind9_named_logging
   block:
@@ -53,9 +51,9 @@
   register: bind9_reg_named_checkconf
   become: true
   become_user: "{{ bind9_user }}"
-  changed_when: False
+  changed_when: false
   vars:
-    ansible_ssh_pipelining: True
+    ansible_ssh_pipelining: true
 
 - name: Create bind9 directory for master zones
   ansible.builtin.file:
@@ -112,6 +110,8 @@
   tags:
     - role:bind9:ddns
     - role:bind9:dnssec
+
+- include_tasks: handle-keys.yml
 
 # TODO: DDNS: move keys into vault file
 - name: Copy over DDNS keys for zones with update_keyfile
