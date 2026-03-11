@@ -24,6 +24,8 @@
         group: "{{ bind9_group }}"
         mode: 0644
 
+- include_tasks: handle-keys.yml
+
 - name: Create dynamic DNS keys
   ansible.builtin.include_tasks: create_ddns_keys.yml
   loop: "{{ bind9_zones_static + bind9_zones_dynamic }}"
@@ -99,19 +101,6 @@
   tags:
     - role:bind9:rndc_key
 
-- name: Create bind9 directory for keys
-  ansible.builtin.file:
-    path: "{{ bind9_keydir }}"
-    state: directory
-    owner: "{{ bind9_user }}"
-    group: "{{ bind9_group }}"
-    mode: 02750
-  when: bind9_authoritative
-  tags:
-    - role:bind9:ddns
-    - role:bind9:dnssec
-
-- include_tasks: handle-keys.yml
 
 # TODO: DDNS: move keys into vault file
 - name: Copy over DDNS keys for zones with update_keyfile

@@ -1,3 +1,8 @@
+{% if bind9_authoritative %}
+// Include TSIG/RNDC key files
+include "/etc/bind/keys/*.key";
+{% endif %}
+
 {% for acl in bind9_acls %}
 acl "{{ acl.name }}" {
 {%   for net in acl.networks %}

@@ -47,7 +47,7 @@
   loop: "{{ bind9_rndc_keys }}"
   loop_control:
     label: "{{ item.name }}"
-  when: item.name not in (bind9_rndc_keys_from_file | map(attribute='name'))
+  when: item.name not in (bind9_rndc_keys_from_file | default([]) | map(attribute='name'))
   tags: keyhandling
 
 - name: Extract secrets from generated keys
@@ -66,7 +66,7 @@
 
 - name: Merge bind9_rndc_keys_from_file and bind9_rndc_keys_generated
   ansible.builtin.set_fact:
-    bind9_loaded_rndc_keys: "{{ bind9_rndc_keys_from_file + (bind9_rndc_keys_generated | default([])) }}"
+    bind9_loaded_rndc_keys: "{{ (bind9_rndc_keys_from_file | default([])) + (bind9_rndc_keys_generated | default([])) }}"
   tags: keyhandling
 
 - name: Save all key files locally
@@ -82,8 +82,20 @@
 - name: Create loaded keys dict
   ansible.builtin.set_fact:
     loaded_keys_dict: "{{ loaded_keys_dict | default({}) | combine({item.name: item.secret}) }}"
-  loop: "{{ bind9_rndc_keys_from_file }}"
+  loop: "{{ bind9_rndc_keys_from_file | default([]) }}"
   tags: keyhandling
+
+- name: Create bind9 directory for keys
+  ansible.builtin.file:
+    path: "{{ bind9_keydir }}"
+    state: directory
+    owner: "{{ bind9_user }}"
+    group: "{{ bind9_group }}"
+    mode: 0750
+  when: bind9_authoritative
+  tags:
+    - role:bind9:ddns
+    - role:bind9:dnssec
 
 - name: Create key files on target
   ansible.builtin.template:
