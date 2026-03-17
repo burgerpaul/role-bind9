@@ -24,7 +24,7 @@
         group: "{{ bind9_group }}"
         mode: 0644
 
-- include_tasks: handle-keys.yml
+- ansible.builtin.include_tasks: handle-keys.yml
 
 - name: Create dynamic DNS keys
   ansible.builtin.include_tasks: create_ddns_keys.yml
